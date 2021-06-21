@@ -875,8 +875,10 @@ func DumpCall(c *ast.CallExpr, fset *token.FileSet) map[string]interface{} {
 	// as function calls and disambiguate them at a further stage.
 	callee := AttemptExprAsType(c.Fun, fset)
 
-	if callee != nil && (callee["value"] != nil || callee["type"] == "interface") &&
-		(callee["type"] != "identifier" || callee["value"].(map[string]interface{})["ident-kind"] == "TypeName") {
+	if callee != nil && (
+		callee["type"] != "identifier" ||
+		(callee["value"] != nil &&
+		callee["value"].(map[string]interface{})["ident-kind"] == "TypeName")) {
 		return withType(map[string]interface{}{
 			"kind":       "expression",
 			"type":       "cast",
