@@ -730,6 +730,15 @@ func DumpExprs(exprs []ast.Expr, fset *token.FileSet) []interface{} {
 	return values
 }
 
+func DumpExprsAsTypes(exprs []ast.Expr, fset *token.FileSet) []interface{} {
+	values := make([]interface{}, len(exprs))
+	for i, v := range exprs {
+		values[i] = DumpExprAsType(v, fset)
+	}
+
+	return values
+}
+
 // Given a token associated with a basic literal, return the BasicKind
 // of its corresponding basic type.
 func TokenBasicKind(tok token.Token) types.BasicKind {
@@ -1192,7 +1201,7 @@ func DumpStmt(s ast.Stmt, fset *token.FileSet) interface{} {
 			"type":     "type-switch",
 			"init":     DumpStmt(n.Init, fset),
 			"assign":   DumpStmt(n.Assign, fset),
-			"body":     DumpBlock(n.Body, fset),
+			"body":     DumpTypeSwitchBody(n.Body, fset),
 			"position": DumpPosition(fset.Position(n.Pos())),
 		}
 	}
@@ -1246,6 +1255,40 @@ func DumpBlock(b *ast.BlockStmt, fset *token.FileSet) []interface{} {
 	results := make([]interface{}, len(b.List))
 	for i, v := range b.List {
 		results[i] = DumpStmt(v, fset)
+	}
+
+	return results
+}
+
+func DumpTypeSwitchBodyStmt(s ast.Stmt, fset *token.FileSet) interface{} {
+	if s == nil {
+		return nil
+	}
+	if n, ok := s.(*ast.CaseClause); ok {
+		exprs := make([]interface{}, len(n.Body))
+		for i, v := range n.Body {
+			exprs[i] = DumpStmt(v, fset)
+		}
+
+		return map[string]interface{}{
+			"kind":        "statement",
+			"type":        "case-clause",
+			"expressions": DumpExprsAsTypes(n.List, fset),
+			"body":        exprs,
+			"position":    DumpPosition(fset.Position(n.Pos())),
+		}
+	}
+
+	return DumpStmt(s, fset)
+}
+
+func DumpTypeSwitchBody(b *ast.BlockStmt, fset *token.FileSet) []interface{} {
+	if b == nil {
+		return nil
+	}
+	results := make([]interface{}, len(b.List))
+	for i, v := range b.List {
+		results[i] = DumpTypeSwitchBodyStmt(v, fset)
 	}
 
 	return results
