@@ -19,6 +19,15 @@ var TOPLEVEL_POSITION token.Position = token.Position{Filename: "toplevel", Offs
 var INVALID_POSITION token.Position = token.Position{Filename: "unspecified", Offset: -1, Line: -1, Column: -1}
 
 var tinfo *types.Info = nil
+var customTypeDumper func(types.Type) interface{} = nil
+
+func SetTypesInfo(info *types.Info) {
+	tinfo = info
+}
+
+func SetTypeDumper(dumper func(types.Type) interface{}) {
+	customTypeDumper = dumper
+}
 
 func Perish(pos token.Position, typ string, reason string) {
 	if ShouldPanic {
@@ -80,7 +89,7 @@ func ConvertChanDir(dir types.ChanDir) ast.ChanDir {
 	}
 }
 
-func getGoType(e ast.Expr) map[string]interface{} {
+func getGoType(e ast.Expr) interface{} {
 	if tinfo != nil {
 		return DumpGoType(tinfo.Types[e].Type)
 	} else {
@@ -195,7 +204,10 @@ func dumpGoTypeAux(tp types.Type, d int) map[string]interface{} {
 	}
 }
 
-func DumpGoType(tp types.Type) map[string]interface{} {
+func DumpGoType(tp types.Type) interface{} {
+	if customTypeDumper != nil {
+		return customTypeDumper(tp)
+	}
 	return dumpGoTypeAux(tp, 0)
 }
 
@@ -271,7 +283,7 @@ func DumpArray(a *ast.ArrayType, fset *token.FileSet) map[string]interface{} {
 	}
 }
 
-func withType(o map[string]interface{}, tp map[string]interface{}) map[string]interface{} {
+func withType(o map[string]interface{}, tp interface{}) map[string]interface{} {
 	if tp != nil {
 		o["go-type"] = tp
 	}
