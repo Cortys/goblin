@@ -20,13 +20,24 @@ var INVALID_POSITION token.Position = token.Position{Filename: "unspecified", Of
 
 var tinfo *types.Info = nil
 var customTypeDumper func(types.Type) interface{} = nil
+var customVarDumper func(*types.Var) interface{} = nil
+var customPkgDumper func(*types.Package) interface{} = nil
+var customFuncDumper func(*types.Func) interface{} = nil
 
 func SetTypesInfo(info *types.Info) {
 	tinfo = info
 }
-
 func SetTypeDumper(dumper func(types.Type) interface{}) {
 	customTypeDumper = dumper
+}
+func SetVarDumper(dumper func(*types.Var) interface{}) {
+	customVarDumper = dumper
+}
+func SetPkgDumper(dumper func(*types.Package) interface{}) {
+	customPkgDumper = dumper
+}
+func SetFuncDumper(dumper func(*types.Func) interface{}) {
+	customFuncDumper = dumper
 }
 
 func Perish(pos token.Position, typ string, reason string) {
@@ -211,30 +222,43 @@ func DumpGoType(tp types.Type) interface{} {
 	return dumpGoTypeAux(tp, 0)
 }
 
-func IdentKind(ident *ast.Ident) string {
+func IdentKind(ident *ast.Ident) (string, interface{}) {
 	if tinfo != nil {
+		var dump interface{}
 		o := tinfo.Uses[ident]
-		switch o.(type) {
+		switch ot := o.(type) {
 		case *types.Builtin:
-			return "Builtin"
+			return "Builtin", nil
 		case *types.Const:
-			return "Const"
+			return "Const", nil
 		case *types.Func:
-			return "Func"
+			if customFuncDumper != nil {
+				dump = customFuncDumper(ot)
+			}
+			return "Func", dump
 		case *types.Label:
-			return "Label"
+			return "Label", nil
 		case *types.Nil:
-			return "Nil"
+			return "Nil", nil
 		case *types.PkgName:
-			return "PkgName"
+			if customPkgDumper != nil {
+				dump = customPkgDumper(ot.Imported())
+			}
+			return "PkgName", dump
 		case *types.TypeName:
-			return "TypeName"
+			if customTypeDumper != nil {
+				dump = customTypeDumper(ot.Type())
+			}
+			return "TypeName", dump
 		case *types.Var:
-			return "Var"
+			if customVarDumper != nil {
+				dump = customVarDumper(ot)
+			}
+			return "Var", dump
 		default: // o is nil
 		}
 	}
-	return "NoKind"
+	return "NoKind", nil
 }
 
 func DumpIdent(i *ast.Ident, fset *token.FileSet) map[string]interface{} {
@@ -242,7 +266,7 @@ func DumpIdent(i *ast.Ident, fset *token.FileSet) map[string]interface{} {
 		return nil
 	}
 
-	identKind := IdentKind(i)
+	identKind, identData := IdentKind(i)
 
 	// This stuff only applies when type information isn't
 	// available. Otherwise literals are handled by AttemptConst.
@@ -266,12 +290,24 @@ func DumpIdent(i *ast.Ident, fset *token.FileSet) map[string]interface{} {
 
 	}
 
-	return map[string]interface{}{
+	identMap := map[string]interface{}{
 		"kind":       "ident",
 		"ident-kind": identKind,
 		"value":      i.Name,
 		"position":   DumpPosition(fset.Position(i.Pos())),
 	}
+
+	switch identKind {
+	case "PkgName":
+		identMap["package"] = identData
+	case "Var":
+		identMap["variable"] = identData
+	case "TypeName":
+		identMap["go-type"] = identData
+	default:
+	}
+
+	return identMap
 }
 
 func DumpArray(a *ast.ArrayType, fset *token.FileSet) map[string]interface{} {
@@ -315,7 +351,8 @@ func AttemptExprAsType(e ast.Expr, fset *token.FileSet) map[string]interface{} {
 
 		is_type := false
 		if tinfo != nil {
-			is_type = IdentKind(n.Sel) == "TypeName"
+			identKind, _ := IdentKind(n.Sel)
+			is_type = identKind == "TypeName"
 		} else {
 			is_type = lhs["type"] == "identifier" && lhs["qualifier"] == nil
 		}
