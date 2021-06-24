@@ -352,7 +352,13 @@ func AttemptExprAsType(e ast.Expr, fset *token.FileSet) map[string]interface{} {
 		is_type := false
 		if tinfo != nil {
 			identKind, _ := IdentKind(n.Sel)
-			is_type = identKind == "TypeName"
+			if identKind == "NoKind" && lhs["type"] == "identifier" && lhs["qualifier"] == nil {
+				if val, ok := lhs["value"].(map[string]interface{}); ok {
+					is_type = val["value"] == "C"
+				}
+			} else {
+				is_type = identKind == "TypeName"
+			}
 		} else {
 			is_type = lhs["type"] == "identifier" && lhs["qualifier"] == nil
 		}
