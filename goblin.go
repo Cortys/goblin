@@ -304,6 +304,8 @@ func DumpIdent(i *ast.Ident, fset *token.FileSet) map[string]interface{} {
 		identMap["variable"] = identData
 	case "TypeName":
 		identMap["go-type"] = identData
+	case "Func":
+		identMap["function"] = identData
 	default:
 	}
 
